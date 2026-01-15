@@ -65,6 +65,10 @@ public class Main implements Runnable {
     @Option(names = "--java", description = "Focus on Java application threads")
     boolean focusOnJava;
 
+    @Option(names = {"-t", "--timeout"}, defaultValue = "-1",
+            description = "Maximum time in seconds for a single iteration before treating it as an error/timeout (default: -1, disabled)")
+    long timeoutSeconds;
+
     long startOfFuzzingTime;
 
     boolean doesErrorScriptSucceed() {
@@ -116,6 +120,11 @@ public class Main implements Runnable {
                     }
                 }
                 if (startTime + iterationTimeNs / 1_000_000 < System.currentTimeMillis()) {
+                    break;
+                }
+                if (timeoutSeconds > 0 && startTime + timeoutSeconds * 1000 < System.currentTimeMillis()) {
+                    didProgramFail = true;
+                    System.out.println("Iteration timed out");
                     break;
                 }
             }

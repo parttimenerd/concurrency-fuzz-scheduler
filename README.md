@@ -27,7 +27,7 @@ Usage: scheduler.sh [-dhV] [--java] [--log] [-e=<errorCommand>]
                     [--error-check-interval=<errorCheckIntervalNs>]
                     [-i=<iterationTimeNs>] [-m=<maxIterations>] [-r=<runRange>]
                     [-s=<sleepRange>] [--slice=<sliceNs>]
-                    [--system-slice=<systemSliceNs>] script
+                    [--system-slice=<systemSliceNs>] [-t=<timeoutSeconds>] script
 Linux scheduler that produces random scheduling edge case to fuzz concurrent
 applications, runs till error
       script                 Script or command to execute
@@ -51,6 +51,10 @@ applications, runs till error
       --slice=<sliceNs>      Time slice duration for the script
       --system-slice=<systemSliceNs>
                              Time slice duration for all non-script tasks
+  -t, --timeout=<timeoutSeconds>
+                             Maximum time in seconds for a single iteration
+                               before treating it as an error/timeout (default:
+                               -1, disabled)
   -V, --version              Print version information and exit.
 ```
 
