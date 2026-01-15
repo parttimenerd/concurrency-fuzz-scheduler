@@ -1,3 +1,5 @@
 #!/usr/bin/sh
 
-sudo -E PATH=$PATH zsh -c "java --enable-native-access=ALL-UNNAMED -jar target/concurrency-fuzz-scheduler-0.1-SNAPSHOT-jar-with-dependencies.jar $*" -- "$@"
+SCRIPT_DIR="$(dirname "$0")"
+
+sudo sh -c "PATH=$PATH java --enable-native-access=ALL-UNNAMED -jar $SCRIPT_DIR/target/concurrency-fuzz-scheduler-0.1-SNAPSHOT-jar-with-dependencies.jar $*" -- "$@"
