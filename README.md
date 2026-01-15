@@ -41,7 +41,7 @@ applications, runs till error
   -h, --help                 Show this help message and exit.
   -i, --iteration-time=<iterationTimeNs>
                              Time to run the script for at a time, restart the
-                               whole process afterwards
+                               whole process afterwards, ignored with timeout != -1
       --java                 Focus on Java application threads
       --log                  Log the state changes
   -m, --max-iterations=<maxIterations>

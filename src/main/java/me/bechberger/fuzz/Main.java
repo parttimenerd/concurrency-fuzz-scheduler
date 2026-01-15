@@ -10,6 +10,8 @@ import me.bechberger.fuzz.util.DurationRangeConverter;
 import picocli.CommandLine;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import static picocli.CommandLine.Option;
@@ -43,7 +45,7 @@ public class Main implements Runnable {
     String errorCommand;
 
     @Option(names = {"-i", "--iteration-time"}, defaultValue = "100s",
-            description = "Time to run the script for at a time, restart the whole process afterwards", converter = DurationConverter.class)
+            description = "Time to run the script for at a time, restart the whole process afterwards, ignored with timeout != 1", converter = DurationConverter.class)
     long iterationTimeNs;
 
     @Option(names = {"-d", "--dont-scale-slice"}, defaultValue = "false",
@@ -83,14 +85,29 @@ public class Main implements Runnable {
         }
     }
 
+    boolean inTimeoutMode() {
+        return timeoutSeconds != -1;
+    }
+
     /**
-     * @return boolean should continue
+     * @return IterationResult containing duration and failure status
      */
-    boolean iteration() throws InterruptedException, IOException {
+    static class IterationResult {
+        final double durationSeconds;
+        final boolean didFail;
+
+        IterationResult(double durationSeconds, boolean didFail) {
+            this.durationSeconds = durationSeconds;
+            this.didFail = didFail;
+        }
+    }
+
+    IterationResult iteration() throws InterruptedException, IOException {
         var seed = new Random().nextInt();
         System.out.println("Iteration");
         boolean didProgramFail = false;
         Process process;
+        long iterationStartTime = System.currentTimeMillis();
         try (var scheduler = BPFProgram.load(FIFOScheduler.class)) {
             // we have a circular dependency here between getting the pid and setting the scheduler setting
             // sleeping for two seconds should prevent any issues
@@ -119,10 +136,11 @@ public class Main implements Runnable {
                         break;
                     }
                 }
-                if (startTime + iterationTimeNs / 1_000_000 < System.currentTimeMillis()) {
-                    break;
-                }
-                if (timeoutSeconds > 0 && startTime + timeoutSeconds * 1000 < System.currentTimeMillis()) {
+                if (!inTimeoutMode()) {
+                    if (startTime + iterationTimeNs / 1_000_000 < System.currentTimeMillis()) {
+                        break;
+                    }
+                } else if (startTime + timeoutSeconds * 1000 < System.currentTimeMillis()) {
                     didProgramFail = true;
                     System.out.println("Iteration timed out");
                     break;
@@ -134,12 +152,14 @@ public class Main implements Runnable {
             System.out.println("Killing process");
             Thread.sleep(100);
         }
-        return didProgramFail;
+        double duration = (System.currentTimeMillis() - iterationStartTime) / 1000.0;
+        return new IterationResult(duration, didProgramFail);
     }
 
     @Override
     public void run() {
         this.startOfFuzzingTime = System.currentTimeMillis();
+        List<Double> iterationDurations = new ArrayList<>();
         DiagramHelper diagram = new DiagramHelper();
         double[] firstTimestamp = new double[]{-1 /* overall */, -1 /* iteration */};
         if (log) {
@@ -168,7 +188,15 @@ public class Main implements Runnable {
         for (int i = 0; maxIterations < 0 || i < maxIterations; i++) {
             try {
                 firstTimestamp[1] = -1;
-                if (iteration()) {
+                IterationResult result = iteration();
+                iterationDurations.add(result.durationSeconds);
+
+                if (log) {
+                    printIterationStats(iterationDurations);
+                    System.out.println();
+                }
+
+                if (result.didFail) {
                     System.out.printf("Program failed after %.3f%n", (System.currentTimeMillis() - startOfFuzzingTime) / 1000.0);
                     break;
                 }
@@ -177,9 +205,43 @@ public class Main implements Runnable {
                 break;
             }
         }
+
+        // Print iteration statistics
+        if (!iterationDurations.isEmpty() && !log) {
+            printIterationStats(iterationDurations);
+        }
+
         /*if (log) {
             System.out.println(diagram.createDataJSON());
         }*/
+    }
+
+    private void printIterationStats(List<Double> durations) {
+        int count = durations.size();
+        double sum = 0;
+        double min = Double.MAX_VALUE;
+        double max = Double.MIN_VALUE;
+
+        for (double duration : durations) {
+            sum += duration;
+            min = Math.min(min, duration);
+            max = Math.max(max, duration);
+        }
+
+        double mean = sum / count;
+
+        // Calculate standard deviation
+        double sumSquaredDiff = 0;
+        for (double duration : durations) {
+            double diff = duration - mean;
+            sumSquaredDiff += diff * diff;
+        }
+        double stdDev = Math.sqrt(sumSquaredDiff / count);
+
+        System.out.println();
+        System.out.println("Iteration Count: " + count);
+        System.out.printf("Iteration Duration: mean=%.1fs+-%.1fs,min=%.1fs,max=%.1fs%n",
+                         mean, stdDev, min, max);
     }
 
 
