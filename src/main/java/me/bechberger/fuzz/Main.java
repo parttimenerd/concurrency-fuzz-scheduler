@@ -141,18 +141,22 @@ public class Main implements Runnable {
     public void run() {
         this.startOfFuzzingTime = System.currentTimeMillis();
         DiagramHelper diagram = new DiagramHelper();
+        double[] firstTimestamp = new double[]{-1 /* overall */, -1 /* iteration */};
         if (log) {
             var logPrintThread = new Thread(() -> {
-                double[] firstTimestamp = new double[]{-1};
                 TraceLog.getInstance().printLoop(f -> {
                     if (firstTimestamp[0] == -1) {
                         firstTimestamp[0] = f.ts();
                     }
+                    if (firstTimestamp[1] == -1) {
+                        firstTimestamp[1] = f.ts();
+                    }
                     var time = f.ts() - firstTimestamp[0];
+                    var timeSinceIterationStart = f.ts() - firstTimestamp[1];
                     var task = f.msg().split(" is ")[0];
                     var duration = Integer.parseInt(f.msg().split(" for ")[1].split("ms")[0]) / 1000.0;
                     diagram.recordEvent(time, task, f.msg().contains("is sleeping") ? DiagramHelper.EventType.SLEEPING : DiagramHelper.EventType.RUNNING, duration);
-                    return String.format("[%03.3f] %s", time, f.msg());
+                    return String.format("[%6.3f|%6.3f] %s", time, timeSinceIterationStart, f.msg());
                 });
             });
             logPrintThread.setDaemon(true);
@@ -160,6 +164,7 @@ public class Main implements Runnable {
         }
         for (int i = 0; maxIterations < 0 || i < maxIterations; i++) {
             try {
+                firstTimestamp[1] = -1;
                 if (iteration()) {
                     System.out.printf("Program failed after %.3f%n", (System.currentTimeMillis() - startOfFuzzingTime) / 1000.0);
                     break;
