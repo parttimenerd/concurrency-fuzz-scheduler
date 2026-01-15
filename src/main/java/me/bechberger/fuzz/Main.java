@@ -154,8 +154,11 @@ public class Main implements Runnable {
                     var time = f.ts() - firstTimestamp[0];
                     var timeSinceIterationStart = f.ts() - firstTimestamp[1];
                     var task = f.msg().split(" is ")[0];
-                    var duration = Integer.parseInt(f.msg().split(" for ")[1].split("ms")[0]) / 1000.0;
-                    diagram.recordEvent(time, task, f.msg().contains("is sleeping") ? DiagramHelper.EventType.SLEEPING : DiagramHelper.EventType.RUNNING, duration);
+                    try {
+                        var duration = Integer.parseInt(f.msg().split(" for ")[1].split("ms")[0]) / 1000.0;
+                        diagram.recordEvent(time, task, f.msg().contains("is sleeping") ? DiagramHelper.EventType.SLEEPING : DiagramHelper.EventType.RUNNING, duration);
+                    } catch (Exception ignored) {
+                    }
                     return String.format("[%6.3f|%6.3f] %s", time, timeSinceIterationStart, f.msg());
                 });
             });

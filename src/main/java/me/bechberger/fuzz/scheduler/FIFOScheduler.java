@@ -170,7 +170,9 @@ public abstract class FIFOScheduler extends BPFProgram implements Scheduler {
             return true;
         }
         if (schedulerSetting.get().focusOnJava) {
-            if (((p.val().comm[0] == 'C' || p.val().comm[0] == 'G') && (p.val().comm[1] == '1' || p.val().comm[1] == '2')) || (p.val().comm[0] == 'V' && p.val().comm[1] == 'M')) {
+            if (((p.val().comm[0] == 'C' || p.val().comm[0] == 'G') && (p.val().comm[1] == '1' || p.val().comm[1] == '2')) || // compiler and garbage collector threads
+                (p.val().comm[0] == 'V' && p.val().comm[1] == 'M') ||  // VM threads
+                (p.val().comm[0] == 'M' && p.val().comm[1] == 'o') /* monitor threads */) {
                 return true;
             }
         }
