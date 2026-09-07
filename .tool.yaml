@@ -1,0 +1,78 @@
+tag: poc
+no_release: true
+tagline: eBPF-based Linux scheduler written in Java (via hello-ebpf) that fuzzes concurrent applications
+  by randomly stopping and starting threads at the kernel level — triggering scheduling edge cases
+  that are impossible to reproduce with user-space signals. FOSDEM'25 talk companion.
+tagline_short: Fuzz concurrent Java apps with a custom eBPF scheduler — random stop/start at kernel level.
+links:
+- label: Blog post ↗
+  url: https://mostlynerdless.de/blog/2026/01/26/reproducing-a-tricky-bug-in-minutes-with-a-custom-linux-scheduler-written-in-java/
+- label: FOSDEM'25 talk ↗
+  url: https://fosdem.org/2025/schedule/event/fosdem-2025-4489-concurrency-testing-using-custom-linux-schedulers/
+- label: LWN article ↗
+  url: https://lwn.net/SubscriberLink/1007689/922423e440f5e68a/
+- label: hello-ebpf ↗
+  url: https://github.com/parttimenerd/hello-ebpf
+when_to_use:
+- You want to reproduce concurrency bugs that only appear under unusual thread interleaving
+- You are testing a concurrent Java application and normal stress testing doesn't trigger the failure
+when_not_to_use:
+- You are on macOS or Windows (Linux only, kernel 6.13+)
+- You need a production-grade fuzzer — this is a proof of concept
+install:
+- label: Build from source
+  lang: bash
+  code: |
+    # requires Linux 6.13+, libbpf-dev, clang, Java 23
+    git clone https://github.com/parttimenerd/concurrency-fuzz-scheduler
+    cd concurrency-fuzz-scheduler
+    mvn package
+usage:
+- label: Fuzz a program
+  lang: bash
+  code: |
+    ./scheduler.sh <script-or-command>
+    # focus on Java threads, log state changes:
+    ./scheduler.sh samples/run_queue.sh --java --log
+how_to:
+- title: Fuzz a concurrent program until it fails
+  body: |
+    Pass the script or command to run as the positional argument. The scheduler randomly stops
+    and resumes threads, restarting the program each iteration until it exits with a non-zero
+    exit code:
+    ```bash
+    ./scheduler.sh samples/run_queue.sh --java --log
+    ```
+    `--java` focuses the random scheduling on Java application threads (skips JVM internals).
+    `--log` prints each stop/run state change with timestamps so you can see what triggered the crash.
+
+    Default ranges: sleep `10ms–2000ms`, run `1ms–100ms`. Use `--max-iterations` to cap the run:
+    ```bash
+    ./scheduler.sh my_test.sh --java --max-iterations=50
+    ```
+
+- title: Tune the run/sleep ranges
+  body: |
+    Control how aggressively threads are interrupted with `--run` and `--sleep` ranges:
+    ```bash
+    # run threads for 5–50ms, sleep them for 100–500ms
+    ./scheduler.sh my_program --run=5ms,50ms --sleep=100ms,500ms
+    ```
+    Set a per-iteration timeout — treated as a failure if the program doesn't finish in time:
+    ```bash
+    ./scheduler.sh my_program --timeout=60
+    ```
+
+- title: Use a custom error detection script
+  body: |
+    By default any non-zero exit code is treated as a failure. Supply `--error-command` to run
+    a custom detection script at each check interval — the script signals failure by exiting
+    with code 0 (success means "error found"):
+    ```bash
+    ./scheduler.sh my_program --error-command="grep -q 'ERROR' app.log"
+    # grep exits 0 when it finds the pattern — that triggers failure detection
+    ```
+    Control how often the check runs (default 10s):
+    ```bash
+    ./scheduler.sh my_program --error-command="./check.sh" --error-check-interval=1s
+    ```
